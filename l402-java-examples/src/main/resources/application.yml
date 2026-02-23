@@ -1,0 +1,11 @@
+l402:
+  secret-key: "example-secret-key-replace-in-production"
+  location: "http://localhost:8080"
+  expiry-seconds: 3600
+
+server:
+  port: 8080
+
+logging:
+  level:
+    online.askahuman: DEBUG
