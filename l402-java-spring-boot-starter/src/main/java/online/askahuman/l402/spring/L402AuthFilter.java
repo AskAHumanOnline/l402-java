@@ -74,10 +74,17 @@ public class L402AuthFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    private static final int MAX_CREDENTIAL_LENGTH = 8192;
+
     private String extractL402Credential(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("L402 ")) {
-            return header.substring(5);
+            String credential = header.substring(5);
+            if (credential.length() > MAX_CREDENTIAL_LENGTH) {
+                log.log(System.Logger.Level.WARNING, "L402 credential exceeds maximum length ({0} > {1}), ignoring", credential.length(), MAX_CREDENTIAL_LENGTH);
+                return null;
+            }
+            return credential;
         }
         return null;
     }

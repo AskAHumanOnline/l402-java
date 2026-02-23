@@ -75,9 +75,11 @@ public final class MacaroonService {
         try {
             Macaroon macaroon = MacaroonsBuilder.deserialize(macaroonBase64);
 
-            // Per L402 spec: identifier must equal the payment hash
-            if (!expectedPaymentHash.equals(macaroon.identifier)) {
-                log.log(System.Logger.Level.WARNING, "Macaroon identifier mismatch — expected: {0}, got: {1}", expectedPaymentHash, macaroon.identifier);
+            // Per L402 spec: identifier must equal the payment hash (constant-time comparison)
+            if (!MessageDigest.isEqual(
+                    expectedPaymentHash.getBytes(StandardCharsets.UTF_8),
+                    macaroon.identifier.getBytes(StandardCharsets.UTF_8))) {
+                log.log(System.Logger.Level.WARNING, "Macaroon identifier mismatch");
                 return false;
             }
 

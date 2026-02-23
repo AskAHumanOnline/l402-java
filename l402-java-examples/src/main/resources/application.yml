@@ -1,5 +1,7 @@
 l402:
-  secret-key: "example-secret-key-replace-in-production"
+  # WARNING: Replace this with a strong random key (32+ chars) before deploying.
+  # Example: openssl rand -hex 32
+  secret-key: "change-me-use-openssl-rand-hex-32-in-prod"
   location: "http://localhost:8080"
   expiry-seconds: 3600
 
