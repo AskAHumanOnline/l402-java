@@ -33,15 +33,4 @@ public record PaymentChallenge(
         );
         return new PaymentChallenge("L402", wwwAuth, details);
     }
-
-    /**
-     * Create an x402 payment challenge stub (placeholder for future implementation).
-     */
-    public static PaymentChallenge x402Stub() {
-        return new PaymentChallenge(
-                "x402",
-                "x402 not yet implemented",
-                Map.of("status", "not_implemented")
-        );
-    }
 }

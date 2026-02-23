@@ -19,7 +19,7 @@ public class L402Properties {
     private String secretKey;
 
     /** Service location identifier embedded in macaroons. */
-    private String location = "https://api.example.com";
+    private String location;
 
     /** Macaroon TTL in seconds. Defaults to 3600 (1 hour). */
     private int expirySeconds = 3600;

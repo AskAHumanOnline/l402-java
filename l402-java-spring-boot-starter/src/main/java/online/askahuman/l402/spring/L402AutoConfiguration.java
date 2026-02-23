@@ -26,6 +26,10 @@ public class L402AutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public MacaroonConfig macaroonConfig(L402Properties props) {
+        if (props.getSecretKey() == null || props.getSecretKey().isBlank()) {
+            throw new org.springframework.beans.factory.BeanCreationException(
+                    "l402.secret-key must not be empty — set a strong random key of at least 32 characters");
+        }
         return new MacaroonConfig(props.getSecretKey(), props.getLocation(), props.getExpirySeconds());
     }
 

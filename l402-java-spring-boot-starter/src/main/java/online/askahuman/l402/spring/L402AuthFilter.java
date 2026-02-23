@@ -50,24 +50,20 @@ public class L402AuthFilter extends OncePerRequestFilter {
 
         if (credential != null) {
             try {
-                if (!credential.contains(":")) {
-                    log.log(System.Logger.Level.DEBUG, "Invalid L402 format: missing colon separator");
+                String macaroonBase64 = credential.split(":", 2)[0];
+                UUID requestId = macaroonService.extractRequestId(macaroonBase64);
+
+                L402PaymentContext context = contextLoader.load(requestId);
+                boolean valid = l402Service.verifyCredential(context, credential);
+
+                if (valid) {
+                    L402PaymentAuthentication authentication =
+                            new L402PaymentAuthentication(requestId, credential);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    log.log(System.Logger.Level.DEBUG, "L402 authentication set for request {0}", requestId);
                 } else {
-                    String macaroonBase64 = credential.split(":", 2)[0];
-                    UUID requestId = macaroonService.extractRequestId(macaroonBase64);
-
-                    L402PaymentContext context = contextLoader.load(requestId);
-                    boolean valid = l402Service.verifyCredential(context, credential);
-
-                    if (valid) {
-                        L402PaymentAuthentication authentication =
-                                new L402PaymentAuthentication(requestId, credential);
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                        log.log(System.Logger.Level.DEBUG, "L402 authentication set for request {0}", requestId);
-                    } else {
-                        log.log(System.Logger.Level.DEBUG, "L402 credential verification failed for request {0}", requestId);
-                        SecurityContextHolder.clearContext();
-                    }
+                    log.log(System.Logger.Level.DEBUG, "L402 credential verification failed for request {0}", requestId);
+                    SecurityContextHolder.clearContext();
                 }
             } catch (Exception e) {
                 log.log(System.Logger.Level.DEBUG, "L402 authentication failed: {0}", e.getMessage());

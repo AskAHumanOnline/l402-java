@@ -4,7 +4,9 @@ import com.github.nitram509.jmacaroons.Macaroon;
 import com.github.nitram509.jmacaroons.MacaroonsBuilder;
 import com.github.nitram509.jmacaroons.MacaroonsVerifier;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -13,7 +15,7 @@ import java.util.UUID;
  * <p>This is a pure Java class with no Spring dependencies.
  * Instantiate with a {@link MacaroonConfig}.</p>
  */
-public class MacaroonService {
+public final class MacaroonService {
 
     private static final System.Logger log = System.getLogger(MacaroonService.class.getName());
 
@@ -72,6 +74,12 @@ public class MacaroonService {
     public boolean verifyL402(String macaroonBase64, String preimageHex, String expectedPaymentHash, String expectedTier) {
         try {
             Macaroon macaroon = MacaroonsBuilder.deserialize(macaroonBase64);
+
+            // Per L402 spec: identifier must equal the payment hash
+            if (!expectedPaymentHash.equals(macaroon.identifier)) {
+                log.log(System.Logger.Level.WARNING, "Macaroon identifier mismatch — expected: {0}, got: {1}", expectedPaymentHash, macaroon.identifier);
+                return false;
+            }
 
             String expiresAtStr = extractCaveatValue(macaroon, "expires_at");
             if (expiresAtStr != null) {
@@ -137,6 +145,9 @@ public class MacaroonService {
     }
 
     private String extractCaveatValue(Macaroon macaroon, String key) {
+        if (macaroon.caveatPackets == null) {
+            return null;
+        }
         String prefix = key + " = ";
         for (var caveat : macaroon.caveatPackets) {
             String caveatValue = caveat.getValueAsText();
@@ -153,7 +164,10 @@ public class MacaroonService {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(preimage);
             String computedHash = bytesToHex(hash);
-            boolean valid = computedHash.equalsIgnoreCase(paymentHashHex);
+            boolean valid = MessageDigest.isEqual(
+                    computedHash.getBytes(StandardCharsets.UTF_8),
+                    paymentHashHex.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8)
+            );
             log.log(System.Logger.Level.DEBUG, "Preimage verification - Expected: {0}, Computed: {1}, Valid: {2}", paymentHashHex, computedHash, valid);
             return valid;
         } catch (Exception e) {
@@ -163,6 +177,9 @@ public class MacaroonService {
     }
 
     private byte[] hexToBytes(String hex) {
+        if (hex == null || hex.length() % 2 != 0 || !hex.matches("[0-9a-fA-F]+")) {
+            throw new IllegalArgumentException("Invalid hex string: " + hex);
+        }
         int len = hex.length();
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {

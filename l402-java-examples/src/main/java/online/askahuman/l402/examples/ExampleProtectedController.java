@@ -57,16 +57,11 @@ public class ExampleProtectedController {
 
         // Not authenticated -- create a mock payment context and return 402
         UUID requestId = UUID.randomUUID();
-        String mockPaymentHash = "mock_hash_" + requestId.toString().replace("-", "");
-        String mockInvoice = "lnbc1000n1mock_invoice_for_" + requestId.toString().replace("-", "");
+        String uuidHex = requestId.toString().replace("-", "");  // 32 hex chars
+        String mockPaymentHash = uuidHex + uuidHex;              // 64 hex chars (SHA256 hash length)
+        String mockInvoice = "lnbc1000n1mock_invoice_for_" + uuidHex;
 
-        L402PaymentContext ctx = new L402PaymentContext() {
-            @Override public UUID requestId() { return requestId; }
-            @Override public String paymentHash() { return mockPaymentHash; }
-            @Override public String paymentRequest() { return mockInvoice; }
-            @Override public int amountSats() { return 100; }
-            @Override public String tier() { return "tier_1"; }
-        };
+        L402PaymentContext ctx = new SimpleL402Context(requestId, mockPaymentHash, mockInvoice, 100, "tier_1");
 
         paymentStore.register(ctx);
         lightningClient.registerInvoice(mockPaymentHash);
@@ -78,3 +73,6 @@ public class ExampleProtectedController {
                 .body(challenge.details());
     }
 }
+
+record SimpleL402Context(UUID requestId, String paymentHash, String paymentRequest, int amountSats, String tier)
+        implements L402PaymentContext {}

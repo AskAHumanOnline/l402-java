@@ -16,7 +16,7 @@ import java.util.UUID;
 public class L402PaymentAuthentication extends AbstractAuthenticationToken {
 
     private final UUID requestId;
-    private final String credential;
+    private String credential;
 
     public L402PaymentAuthentication(UUID requestId, String credential) {
         super(Collections.emptyList());
@@ -33,6 +33,12 @@ public class L402PaymentAuthentication extends AbstractAuthenticationToken {
     @Override
     public Object getCredentials() {
         return credential;
+    }
+
+    @Override
+    public void eraseCredentials() {
+        super.eraseCredentials();
+        this.credential = null;
     }
 
     /** Returns the request ID this authentication is for. */
