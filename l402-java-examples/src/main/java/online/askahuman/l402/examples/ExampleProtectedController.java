@@ -8,12 +8,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 import java.util.UUID;
+
 
 /**
  * Example controller demonstrating the L402 payment-gated endpoint pattern.
@@ -43,7 +43,7 @@ public class ExampleProtectedController {
     }
 
     @PostMapping
-    public ResponseEntity<?> handle(@RequestBody(required = false) Map<String, Object> body) {
+    public ResponseEntity<?> handle() {
         // Check if already authenticated via L402
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication instanceof L402PaymentAuthentication l402Auth) {
