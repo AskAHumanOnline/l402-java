@@ -7,8 +7,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * In-memory store for payment contexts (for demonstration purposes only).
- * Implements {@link online.askahuman.l402.spring.PaymentContextLoader} via a method reference.
+ * In-memory store for payment contexts.
+ *
+ * <p><strong>FOR DEMONSTRATION ONLY.</strong> This implementation has no eviction policy and will
+ * grow unboundedly under load (each unauthenticated request adds an entry). A production
+ * implementation should use a database table or cache (e.g. Redis) with TTL-based expiry keyed
+ * on the macaroon {@code expirySeconds}, and should also enforce a maximum store size to prevent
+ * memory exhaustion.</p>
  */
 @Component
 public class InMemoryPaymentStore {

@@ -5,21 +5,46 @@ package online.askahuman.l402;
  *
  * <p>Handles challenge creation, credential verification, and payment status checks.
  * This class has no Spring dependencies -- wire it up with your DI framework of choice.</p>
+ *
+ * <p><strong>Replay protection:</strong> By default, verified credentials may be reused within
+ * the macaroon's TTL window. To prevent replay attacks, supply a {@link CredentialStore} that
+ * tracks consumed request IDs (e.g. backed by Redis with a TTL matching
+ * {@link MacaroonConfig#getExpirySeconds()}). See {@link CredentialStore} for details and a
+ * complete example.</p>
  */
-public class L402Service {
+public final class L402Service {
 
     private static final System.Logger log = System.getLogger(L402Service.class.getName());
 
     private final MacaroonService macaroonService;
     private final LightningClient lightningClient;
+    private final CredentialStore credentialStore;
 
     /**
-     * @param macaroonService  configured macaroon service
-     * @param lightningClient  client to check invoice payment status
+     * @param macaroonService configured macaroon service
+     * @param lightningClient client to check invoice payment status
+     * @param credentialStore store for consumed credential IDs (replay protection)
      */
-    public L402Service(MacaroonService macaroonService, LightningClient lightningClient) {
+    public L402Service(MacaroonService macaroonService, LightningClient lightningClient,
+                       CredentialStore credentialStore) {
         this.macaroonService = macaroonService;
         this.lightningClient = lightningClient;
+        this.credentialStore = credentialStore;
+    }
+
+    /**
+     * Convenience constructor without replay protection.
+     *
+     * <p><strong>Security warning:</strong> Without a {@link CredentialStore}, a valid
+     * {@code macaroon:preimage} credential can be reused within the macaroon's TTL window.
+     * Use {@link #L402Service(MacaroonService, LightningClient, CredentialStore)} in production
+     * environments where credential replay is a concern.</p>
+     *
+     * @param macaroonService configured macaroon service
+     * @param lightningClient client to check invoice payment status
+     */
+    public L402Service(MacaroonService macaroonService, LightningClient lightningClient) {
+        this(macaroonService, lightningClient, requestId -> true);
     }
 
     /**
@@ -46,13 +71,15 @@ public class L402Service {
      *
      * @param ctx        protocol-level payment context
      * @param credential raw credential string from the {@code Authorization: L402 ...} header
-     * @return {@code true} if the credential is cryptographically valid
+     * @return {@code true} if the credential is cryptographically valid and has not been replayed
      */
     public boolean verifyCredential(L402PaymentContext ctx, String credential) {
         try {
             String[] parts = credential.split(":", 2);
             if (parts.length != 2) {
-                log.log(System.Logger.Level.WARNING, "Invalid L402 credential format for request {0}: missing colon separator", ctx.requestId());
+                log.log(System.Logger.Level.WARNING,
+                        "Invalid L402 credential format for request {0}: missing colon separator",
+                        ctx.requestId());
                 return false;
             }
 
@@ -63,10 +90,16 @@ public class L402Service {
                     macaroonBase64,
                     preimageHex,
                     ctx.paymentHash(),
-                    ctx.tier()
+                    ctx.tier(),
+                    ctx.amountSats()
             );
 
             if (valid) {
+                if (!credentialStore.consume(ctx.requestId())) {
+                    log.log(System.Logger.Level.WARNING,
+                            "L402 credential replay detected for request {0}", ctx.requestId());
+                    return false;
+                }
                 log.log(System.Logger.Level.INFO, "L402 credentials verified for request {0}", ctx.requestId());
             } else {
                 log.log(System.Logger.Level.WARNING, "L402 verification failed for request {0}", ctx.requestId());
@@ -75,7 +108,9 @@ public class L402Service {
             return valid;
 
         } catch (Exception e) {
-            log.log(System.Logger.Level.ERROR, "L402 credential verification error for request {0}: {1}", ctx.requestId(), e.getMessage());
+            log.log(System.Logger.Level.ERROR,
+                    "L402 credential verification error for request {0}: {1}",
+                    ctx.requestId(), e.getMessage());
             return false;
         }
     }

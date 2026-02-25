@@ -19,6 +19,13 @@ import java.util.UUID;
  * }
  * }
  * </pre>
+ *
+ * <p><strong>Security note:</strong> {@link #load} is called by {@link L402AuthFilter} with a
+ * request ID extracted from the incoming macaroon <em>before</em> cryptographic signature
+ * verification. The UUID is attacker-controlled. Implementations must use lightweight lookups
+ * (primary-key index, in-memory map) rather than expensive operations such as full-text search
+ * or external service calls, to prevent pre-authentication denial-of-service via crafted
+ * macaroons with arbitrary UUIDs.</p>
  */
 @FunctionalInterface
 public interface PaymentContextLoader {
@@ -26,7 +33,10 @@ public interface PaymentContextLoader {
     /**
      * Load the payment context for the given request ID.
      *
-     * @param requestId the request UUID extracted from the macaroon
+     * <p><strong>Important:</strong> this method is called with an unverified, attacker-supplied
+     * UUID. Implementations should use simple, bounded lookups only.</p>
+     *
+     * @param requestId the request UUID extracted from the macaroon (not yet signature-verified)
      * @return the payment context; must not return {@code null}
      * @throws RuntimeException if the request is not found (filter will clear SecurityContext)
      */

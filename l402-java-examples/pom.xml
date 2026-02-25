@@ -35,6 +35,12 @@
         </dependency>
     </dependencies>
 
+    <properties>
+        <!-- Exclude the examples module from Maven Central publication.
+             It is a runnable demo application, not a library artifact. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

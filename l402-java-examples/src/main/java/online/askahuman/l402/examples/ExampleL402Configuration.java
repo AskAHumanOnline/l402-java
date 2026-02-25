@@ -43,6 +43,9 @@ public class ExampleL402Configuration {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, L402AuthFilter l402AuthFilter) throws Exception {
         http
+            // CSRF protection is not required for Authorization header-based authentication schemes:
+            // browser-based CSRF attacks cannot set the Authorization header, so disabling CSRF
+            // is safe for API endpoints that exclusively use L402 / bearer token auth.
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
             .addFilterBefore(l402AuthFilter, UsernamePasswordAuthenticationFilter.class);

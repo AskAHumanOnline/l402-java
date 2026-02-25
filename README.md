@@ -93,6 +93,9 @@ public class L402Config {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, L402AuthFilter l402AuthFilter) throws Exception {
         return http
+            // CSRF protection is not required for Authorization header-based auth schemes:
+            // browsers cannot set the Authorization header in cross-site requests.
+            .csrf(csrf -> csrf.disable())
             .addFilterBefore(l402AuthFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
     }
@@ -195,9 +198,35 @@ Tested with:
 ## Security Notes
 
 - The `secretKey` is used as an HMAC secret for macaroon signing. **Never log it, never commit it to source control.**
-- All security-sensitive comparisons use `MessageDigest.isEqual` (constant-time).
+- All security-sensitive comparisons use `MessageDigest.isEqual` (constant-time, raw bytes).
 - Macaroons bind the L402 identifier to the Lightning payment hash — a macaroon cannot be reused across invoices.
 - `L402AuthFilter` caps the `Authorization` header at 8192 bytes before parsing.
+- The `invoice` value in the `WWW-Authenticate` header is validated to reject CRLF and control characters (header injection prevention).
+
+### Replay Protection
+
+By default, a valid `macaroon:preimage` credential can be reused within the macaroon's TTL window. To prevent replay attacks, wire a [`CredentialStore`](l402-java-core/src/main/java/online/askahuman/l402/CredentialStore.java) backed by a distributed cache with TTL matching `expiry-seconds`:
+
+```java
+@Bean
+public CredentialStore credentialStore(StringRedisTemplate redis, L402Properties props) {
+    return requestId -> {
+        String key = "l402:used:" + requestId;
+        Boolean firstUse = redis.opsForValue()
+            .setIfAbsent(key, "1", Duration.ofSeconds(props.getExpirySeconds()));
+        return Boolean.TRUE.equals(firstUse);
+    };
+}
+
+@Bean
+public L402Service l402Service(MacaroonService macaroonService,
+                                LightningClient lightningClient,
+                                CredentialStore credentialStore) {
+    return new L402Service(macaroonService, lightningClient, credentialStore);
+}
+```
+
+Without a `CredentialStore`, each request is verified by cryptographic means only. The two-argument `L402Service(MacaroonService, LightningClient)` constructor is provided for convenience but is not recommended for production endpoints where replaying the same payment proof is a concern.
 
 ---
 

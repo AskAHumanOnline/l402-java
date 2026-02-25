@@ -1,7 +1,9 @@
 l402:
-  # WARNING: Replace this with a strong random key (32+ chars) before deploying.
-  # Example: openssl rand -hex 32
-  secret-key: "change-me-use-openssl-rand-hex-32-in-prod"
+  # Required: set the L402_SECRET_KEY environment variable before starting.
+  # Generate a strong key with: openssl rand -hex 32
+  # The application will refuse to start if this is empty or shorter than 32 characters.
+  # NEVER commit a real secret key to source control.
+  secret-key: "${L402_SECRET_KEY:}"
   location: "http://localhost:8080"
   expiry-seconds: 3600
 

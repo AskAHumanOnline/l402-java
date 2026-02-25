@@ -319,6 +319,34 @@ class L402AuthFilterTest {
     }
 
     @Nested
+    class AuthenticationToken {
+
+        @Test
+        void eraseCredentials_nullifiesCredentialField() {
+            UUID requestId = UUID.randomUUID();
+            L402PaymentAuthentication auth = new L402PaymentAuthentication(requestId, "macaroon:preimage");
+
+            assertThat(auth.getCredentials()).isEqualTo("macaroon:preimage");
+            assertThat(auth.getRequestId()).isEqualTo(requestId);
+            assertThat(auth.isAuthenticated()).isTrue();
+
+            auth.eraseCredentials();
+
+            assertThat(auth.getCredentials()).isNull();
+            assertThat(auth.getRequestId()).isEqualTo(requestId); // request ID unaffected
+            assertThat(auth.isAuthenticated()).isTrue();           // auth state unaffected
+        }
+
+        @Test
+        void principalIsRequestId() {
+            UUID requestId = UUID.randomUUID();
+            L402PaymentAuthentication auth = new L402PaymentAuthentication(requestId, "mac:pre");
+
+            assertThat(auth.getPrincipal()).isEqualTo(requestId);
+        }
+    }
+
+    @Nested
     class SecurityContextManagement {
 
         @Test

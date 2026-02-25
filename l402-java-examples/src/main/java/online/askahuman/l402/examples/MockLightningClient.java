@@ -9,7 +9,15 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Mock Lightning client that automatically "pays" invoices after a configurable delay.
- * Mirrors the main app's mock LND mode. For demonstration only -- do not use in production.
+ *
+ * <p><strong>FOR DEMONSTRATION ONLY.</strong> This client reports all registered invoices as paid
+ * after a fixed delay, with no real Lightning Network interaction. It must not be used in
+ * production. Wire a real {@link online.askahuman.l402.LightningClient} implementation (e.g.
+ * backed by LND, Core Lightning, or an LSP SDK) in any deployed application.</p>
+ *
+ * <p>Note: This class is annotated {@code @Component} so it auto-wires in the example application
+ * context. If you copy the example module as a starting point, remove or replace this class
+ * before deploying.</p>
  */
 @Component
 public class MockLightningClient implements LightningClient {

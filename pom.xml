@@ -21,10 +21,13 @@
         </license>
     </licenses>
 
+    <inceptionYear>2025</inceptionYear>
+
     <scm>
         <connection>scm:git:git://github.com/AskAHumanOnline/l402-java.git</connection>
         <developerConnection>scm:git:ssh://github.com/AskAHumanOnline/l402-java.git</developerConnection>
         <url>https://github.com/AskAHumanOnline/l402-java</url>
+        <tag>HEAD</tag>
     </scm>
 
     <developers>
@@ -122,6 +125,11 @@
                             <goals><goal>jar-no-fork</goal></goals>
                         </execution>
                     </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>0.8.14</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

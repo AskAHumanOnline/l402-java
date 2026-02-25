@@ -3,7 +3,7 @@ package online.askahuman.l402;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 import java.security.MessageDigest;
 import java.util.UUID;
 
@@ -30,7 +30,7 @@ class MacaroonServiceTest {
         String macaroon = macaroonService.createMacaroon(requestId, TEST_PAYMENT_HASH, 25, "tier_1");
 
         assertThat(macaroon).isNotNull().isNotBlank();
-        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1");
+        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 25);
         assertThat(valid).isTrue();
     }
 
@@ -41,7 +41,7 @@ class MacaroonServiceTest {
 
         // A preimage that doesn't hash to TEST_PAYMENT_HASH
         String wrongPreimage = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        boolean valid = macaroonService.verifyL402(macaroon, wrongPreimage, TEST_PAYMENT_HASH, "tier_1");
+        boolean valid = macaroonService.verifyL402(macaroon, wrongPreimage, TEST_PAYMENT_HASH, "tier_1", 25);
         assertThat(valid).isFalse();
     }
 
@@ -52,7 +52,7 @@ class MacaroonServiceTest {
 
         MacaroonService differentKeyService = new MacaroonService(
                 new MacaroonConfig("different-secret-key-for-testing-purpose-12345678", TEST_LOCATION, 3600));
-        boolean valid = differentKeyService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1");
+        boolean valid = differentKeyService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 25);
         assertThat(valid).isFalse();
     }
 
@@ -88,7 +88,7 @@ class MacaroonServiceTest {
 
     @Test
     void testVerifyL402_invalidMacaroon() {
-        boolean valid = macaroonService.verifyL402("not-a-valid-macaroon", TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1");
+        boolean valid = macaroonService.verifyL402("not-a-valid-macaroon", TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 25);
         assertThat(valid).isFalse();
     }
 
@@ -98,7 +98,17 @@ class MacaroonServiceTest {
         String macaroon = macaroonService.createMacaroon(requestId, TEST_PAYMENT_HASH, 25, "tier_1");
 
         String wrongHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, wrongHash, "tier_1");
+        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, wrongHash, "tier_1", 25);
+        assertThat(valid).isFalse();
+    }
+
+    @Test
+    void testVerifyL402_wrongAmount() {
+        UUID requestId = UUID.randomUUID();
+        String macaroon = macaroonService.createMacaroon(requestId, TEST_PAYMENT_HASH, 25, "tier_1");
+
+        // Verify against a different amount — satisfyExact("amount = 50") will fail
+        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 50);
         assertThat(valid).isFalse();
     }
 
@@ -112,19 +122,23 @@ class MacaroonServiceTest {
         // Different amounts produce different macaroons
         assertThat(macaroon25).isNotEqualTo(macaroon50);
 
-        // Both verify correctly with the original payment hash
-        assertThat(macaroonService.verifyL402(macaroon25, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1")).isTrue();
-        assertThat(macaroonService.verifyL402(macaroon50, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1")).isTrue();
+        // Each verifies correctly only with its own amount
+        assertThat(macaroonService.verifyL402(macaroon25, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 25)).isTrue();
+        assertThat(macaroonService.verifyL402(macaroon50, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 50)).isTrue();
+
+        // Cross-verification fails
+        assertThat(macaroonService.verifyL402(macaroon25, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 50)).isFalse();
+        assertThat(macaroonService.verifyL402(macaroon50, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 25)).isFalse();
     }
 
     @Test
     void testPreimageHashComputation() throws Exception {
         // Verify that SHA256(TEST_PREIMAGE_bytes) == TEST_PAYMENT_HASH
         // TEST_PREIMAGE is "0000...0001" in hex — 32 bytes
-        byte[] preimageBytes = hexToBytes(TEST_PREIMAGE);
+        byte[] preimageBytes = HexFormat.of().parseHex(TEST_PREIMAGE);
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(preimageBytes);
-        String computedHash = bytesToHex(hash);
+        String computedHash = HexFormat.of().formatHex(hash);
 
         assertThat(computedHash).isEqualTo(TEST_PAYMENT_HASH);
     }
@@ -141,7 +155,7 @@ class MacaroonServiceTest {
         // (expiresAt = now_seconds + 1; verification fails when currentTime > expiresAt)
         Thread.sleep(2100);
 
-        boolean valid = shortTtlService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1");
+        boolean valid = shortTtlService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_1", 25);
         assertThat(valid).isFalse();
     }
 
@@ -150,7 +164,7 @@ class MacaroonServiceTest {
         UUID requestId = UUID.randomUUID();
         String macaroon = macaroonService.createMacaroon(requestId, TEST_PAYMENT_HASH, 25, "tier_1");
 
-        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_2");
+        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, TEST_PAYMENT_HASH, "tier_2", 25);
         assertThat(valid).isFalse();
     }
 
@@ -159,8 +173,19 @@ class MacaroonServiceTest {
         UUID requestId = UUID.randomUUID();
         String macaroon = macaroonService.createMacaroon(requestId, TEST_PAYMENT_HASH, 25, "tier_1");
 
-        // Non-hex characters in preimage string
-        boolean valid = macaroonService.verifyL402(macaroon, "not-valid-hex-string!!", TEST_PAYMENT_HASH, "tier_1");
+        // Non-hex characters — rejected by length check (22 chars != 64) and hex parsing
+        boolean valid = macaroonService.verifyL402(macaroon, "not-valid-hex-string!!", TEST_PAYMENT_HASH, "tier_1", 25);
+        assertThat(valid).isFalse();
+    }
+
+    @Test
+    void testVerifyL402_oversizedPreimage() {
+        UUID requestId = UUID.randomUUID();
+        String macaroon = macaroonService.createMacaroon(requestId, TEST_PAYMENT_HASH, 25, "tier_1");
+
+        // Preimage exceeding 64 chars (Lightning Network preimage is always 32 bytes = 64 hex chars)
+        String oversizedPreimage = "a".repeat(200);
+        boolean valid = macaroonService.verifyL402(macaroon, oversizedPreimage, TEST_PAYMENT_HASH, "tier_1", 25);
         assertThat(valid).isFalse();
     }
 
@@ -172,27 +197,7 @@ class MacaroonServiceTest {
 
         // Verify against a different payment hash — identifier in macaroon won't match expectedPaymentHash
         String differentHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, differentHash, "tier_1");
+        boolean valid = macaroonService.verifyL402(macaroon, TEST_PREIMAGE, differentHash, "tier_1", 25);
         assertThat(valid).isFalse();
-    }
-
-    // --- helpers ---
-
-    private static byte[] hexToBytes(String hex) {
-        int len = hex.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
-                    + Character.digit(hex.charAt(i + 1), 16));
-        }
-        return data;
-    }
-
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
     }
 }
