@@ -1,0 +1,141 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Security Scan
+        id: security-scan
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are a senior security engineer specialising in Java cryptography libraries, the L402 protocol, and Lightning Network payment authentication. Your task is to perform a thorough security review of this pull request.
+
+            **PR:** ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+            **Branch:** `${{ github.head_ref }}` → `${{ github.base_ref }}`
+
+            ## What to Review
+
+            Fetch and analyse only the files changed in this PR. Focus exclusively on the diff — do not audit the entire codebase.
+
+            Run these checks on every changed file:
+
+            ### 1. OWASP Top 10
+            - Injection (command, expression language)
+            - Sensitive data exposure (macaroon bytes, preimages, payment hashes in logs or responses)
+            - Insecure deserialization of untrusted data
+            - Vulnerable/outdated dependency versions
+
+            ### 2. Library API Surface
+            - Unintentionally public classes or methods that expose internal cryptographic state
+            - Mutable objects returned from public API (defensive copy missing)
+            - Missing `@NonNull` / null guards on public API boundaries
+            - Checked vs unchecked exception contracts for protocol violations
+
+            ### 3. L402 Protocol Security
+            - **Macaroon forgery**: HMAC key derivation correctness; weak or guessable root key defaults
+            - **Preimage / payment-hash verification**: SHA256(preimage) must equal payment_hash — any bypass path (null check skipped, short-circuit on empty preimage)
+            - **Replay attacks**: macaroon reuse after preimage submission; missing expiry caveat enforcement
+            - **Caveat verification**: all caveats must be evaluated; unknown caveats must cause rejection (fail-closed), not be silently ignored
+            - **Timing attacks** in HMAC or preimage comparison (use constant-time comparison)
+            - **secp256k1 correctness**: if used for signing/verification, algorithm must match the agreed protocol (`NONEwithECDSA` for pre-hashed messages)
+
+            ### 4. Spring Boot Auto-Configuration Security
+            - Default `SecurityFilterChain` too permissive (anyRequest().permitAll())
+            - Filter ordering: L402AuthFilter must run before authentication filters
+            - Auto-configured beans exposing sensitive config values via Actuator
+            - Missing `@ConditionalOnMissingBean` allowing user config to be silently overridden
+            - JWT or macaroon secret defaults that are weak or hardcoded in auto-configuration
+
+            ### 5. Input Validation & Data Integrity
+            - Missing null / empty checks on Authorization header parsing (malformed `L402 <mac>:<pre>` format)
+            - Integer overflow in satoshi arithmetic (use `long`, not `int`)
+            - Missing validation of invoice amount vs. requested amount
+            - Path traversal via user-supplied macaroon or cert file paths
+
+            ### 6. Secrets & Credentials
+            - Hardcoded macaroon root keys, preimages, or payment hashes in source code
+            - Secrets logged at any level (DEBUG included)
+            - Unsafe default values for security-critical config (e.g., empty or well-known macaroon secret)
+
+            ### 7. Race Conditions & Concurrency
+            - Non-atomic check-then-act on preimage verification state
+            - Missing synchronisation on mutable shared state in auto-configured beans
+            - Double-spend window: payment verified then status updated non-atomically
+
+            ## Severity Scale
+
+            | Severity | Criteria |
+            |----------|----------|
+            | CRITICAL | Exploitable without auth; payment bypass or funds at risk |
+            | HIGH     | Exploitable under specific conditions; protocol correctness broken |
+            | MEDIUM   | Defence-in-depth weakness; indirect risk |
+            | LOW      | Best-practice deviation; low impact |
+            | INFO     | Observation; no direct security impact |
+
+            ## Output Format
+
+            Post your findings as a PR comment with this structure:
+
+            ```
+            ## Security Scan Results
+
+            ### Summary
+            <one-paragraph executive summary>
+
+            ### Findings
+
+            #### [SEVERITY] Short Title
+            **File:** `path/to/File.java:line`
+            **Description:** What the vulnerability is and why it matters.
+            **Recommendation:** Specific fix with code example if helpful.
+
+            ---
+            ```
+
+            If no issues are found, post:
+            ```
+            ## Security Scan Results
+            No security issues found in this PR. ✅
+            ```
+
+            Always post the comment even when there are no findings.
