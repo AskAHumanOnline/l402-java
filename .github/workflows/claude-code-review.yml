@@ -1,33 +1,10 @@
-name: Claude Code Review
+name: Security Review
 
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
 
 jobs:
-  claude-review:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Run Claude Code Review
-        id: claude-review
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-
   security-scan:
     runs-on: ubuntu-latest
     permissions:
@@ -42,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Security Scan
+      - name: Run Security Review
         id: security-scan
         uses: anthropics/claude-code-action@v1
         with:
@@ -53,89 +30,116 @@ jobs:
             **PR:** ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
             **Branch:** `${{ github.head_ref }}` → `${{ github.base_ref }}`
 
-            ## What to Review
+            ## How to Review
 
-            Fetch and analyse only the files changed in this PR. Focus exclusively on the diff — do not audit the entire codebase.
+            1. Use `gh pr diff ${{ github.event.pull_request.number }}` to get the full diff.
+            2. Use `gh pr view ${{ github.event.pull_request.number }} --json files` to list changed files.
+            3. For every changed file, **read the full file** — not just the diff lines. Security issues often arise from the interaction between new code and existing context.
+            4. When a changed file touches macaroon creation or verification, also read `MacaroonService.java` in full to verify the HMAC chain and caveat evaluation are correct.
+            5. When a changed file touches the L402 filter or challenge flow, also read `L402AuthFilter.java` and `L402PaymentChallenge.java` to verify preimage verification and replay protection.
+            6. When a changed file touches Spring auto-configuration, also read the `spring.factories` / `AutoConfiguration.imports` file to verify beans are not silently overridden.
 
-            Run these checks on every changed file:
+            ## Checks to Run on Every Changed File
 
             ### 1. OWASP Top 10
-            - Injection (command, expression language)
-            - Sensitive data exposure (macaroon bytes, preimages, payment hashes in logs or responses)
+            - Injection: command injection in path handling; EL/SpEL injection
+            - Sensitive data exposure: macaroon bytes, preimages, payment hashes, or root keys in logs (any level, including DEBUG/TRACE) or exception messages
             - Insecure deserialization of untrusted data
-            - Vulnerable/outdated dependency versions
+            - SSRF via unvalidated or caller-controlled URLs (LND REST, invoice callback URLs)
+            - Vulnerable/outdated dependency versions in `pom.xml` changes
 
             ### 2. Library API Surface
-            - Unintentionally public classes or methods that expose internal cryptographic state
-            - Mutable objects returned from public API (defensive copy missing)
-            - Missing `@NonNull` / null guards on public API boundaries
-            - Checked vs unchecked exception contracts for protocol violations
+            - Unintentionally public classes or methods that expose internal cryptographic state (HMAC keys, root macaroon bytes)
+            - Mutable objects returned from public API without defensive copy
+            - Missing null guards on public API boundaries (library callers may pass null)
+            - Checked vs unchecked exception contracts — callers must be forced to handle protocol violations
+            - New public methods that could be misused or combined insecurely by downstream consumers
 
             ### 3. L402 Protocol Security
-            - **Macaroon forgery**: HMAC key derivation correctness; weak or guessable root key defaults
-            - **Preimage / payment-hash verification**: SHA256(preimage) must equal payment_hash — any bypass path (null check skipped, short-circuit on empty preimage)
-            - **Replay attacks**: macaroon reuse after preimage submission; missing expiry caveat enforcement
-            - **Caveat verification**: all caveats must be evaluated; unknown caveats must cause rejection (fail-closed), not be silently ignored
-            - **Timing attacks** in HMAC or preimage comparison (use constant-time comparison)
-            - **secp256k1 correctness**: if used for signing/verification, algorithm must match the agreed protocol (`NONEwithECDSA` for pre-hashed messages)
+            - **Macaroon forgery**: HMAC key derivation correctness; weak or guessable root key defaults in auto-configuration
+            - **Preimage / payment-hash verification**: `SHA256(preimage)` must equal `paymentHash` — check for any bypass path (null preimage accepted, short-circuit on empty string, hex decoding errors swallowed)
+            - **Replay attacks**: macaroon accepted after preimage already consumed; missing or bypassable expiry caveat enforcement
+            - **Caveat evaluation**: all caveats must be evaluated; unknown caveats must cause rejection (fail-closed), not be silently ignored
+            - **Timing attacks** in HMAC or preimage comparison — use constant-time `MessageDigest.isEqual()` or equivalent; never use `String.equals()` on secrets
+            - **secp256k1 correctness** (if used): algorithm must be `NONEwithECDSA` for pre-hashed messages — NOT `SHA256withECDSA` which double-hashes
 
-            ### 4. Spring Boot Auto-Configuration Security
-            - Default `SecurityFilterChain` too permissive (anyRequest().permitAll())
-            - Filter ordering: L402AuthFilter must run before authentication filters
-            - Auto-configured beans exposing sensitive config values via Actuator
-            - Missing `@ConditionalOnMissingBean` allowing user config to be silently overridden
-            - JWT or macaroon secret defaults that are weak or hardcoded in auto-configuration
+            ### 4. Macaroon Cryptography
+            - HMAC algorithm strength: must be HMAC-SHA256; weaker algorithms (MD5, SHA1) unacceptable
+            - Root key entropy: auto-configured default must not be empty, hardcoded, or predictable
+            - Caveat serialisation: delimiter injection — if a caveat value contains the delimiter, parsing must not be confused
+            - Third-party caveats (if implemented): discharge macaroon binding must be verified before accepting
+            - Key derivation for third-party caveats must use a secure HKDF or equivalent — direct key reuse is a forgery risk
 
-            ### 5. Input Validation & Data Integrity
-            - Missing null / empty checks on Authorization header parsing (malformed `L402 <mac>:<pre>` format)
-            - Integer overflow in satoshi arithmetic (use `long`, not `int`)
-            - Missing validation of invoice amount vs. requested amount
+            ### 5. Spring Boot Auto-Configuration Security
+            - Default `SecurityFilterChain` too permissive (`anyRequest().permitAll()`)
+            - Filter ordering: `L402AuthFilter` must run before authentication filters that short-circuit the chain
+            - Auto-configured beans exposing sensitive config values (macaroon root key, LND credentials) via Actuator
+            - Missing `@ConditionalOnMissingBean` allowing consumer configuration to be silently overridden
+            - Macaroon secret defaults that are weak or hardcoded in auto-configuration
+            - Configuration properties bound without `@Validated` — missing constraints allow empty secrets at startup
+
+            ### 6. Input Validation & Data Integrity
+            - Missing null or empty checks on `Authorization` header parsing (malformed `L402 <mac>:<pre>` accepted)
+            - Integer overflow in satoshi arithmetic — use `long`, not `int`
+            - Missing validation of invoice amount vs. requested amount (client-supplied amount accepted without server-side check)
             - Path traversal via user-supplied macaroon or cert file paths
+            - Hex decoding of payment hash or preimage without length validation (must be exactly 64 hex chars)
 
-            ### 6. Secrets & Credentials
-            - Hardcoded macaroon root keys, preimages, or payment hashes in source code
-            - Secrets logged at any level (DEBUG included)
-            - Unsafe default values for security-critical config (e.g., empty or well-known macaroon secret)
+            ### 7. Secrets & Credentials
+            - Hardcoded macaroon root keys, preimages, payment hashes, or payment secrets in source code
+            - Secrets logged at any level (DEBUG and TRACE included)
+            - Unsafe default values for security-critical configuration (empty or well-known macaroon secret)
+            - New `application*.yml` or `.properties` test fixtures that contain real-looking credentials
 
-            ### 7. Race Conditions & Concurrency
-            - Non-atomic check-then-act on preimage verification state
-            - Missing synchronisation on mutable shared state in auto-configured beans
+            ### 8. Race Conditions & Concurrency
+            - Non-atomic check-then-act on preimage verification state (verify then mark used)
             - Double-spend window: payment verified then status updated non-atomically
+            - Missing synchronisation on mutable shared state in auto-configured singleton beans
 
             ## Severity Scale
 
             | Severity | Criteria |
             |----------|----------|
-            | CRITICAL | Exploitable without auth; payment bypass or funds at risk |
+            | CRITICAL | Exploitable without auth; payment bypass, macaroon forgery, or funds at risk |
             | HIGH     | Exploitable under specific conditions; protocol correctness broken |
-            | MEDIUM   | Defence-in-depth weakness; indirect risk |
-            | LOW      | Best-practice deviation; low impact |
-            | INFO     | Observation; no direct security impact |
+            | MEDIUM   | Defence-in-depth weakness; indirect or chained risk |
+            | LOW      | Best-practice deviation; negligible direct impact |
+            | INFO     | Observation or hardening suggestion; no direct security impact |
 
             ## Output Format
 
-            Post your findings as a PR comment with this structure:
+            Post your findings as a PR comment using this exact structure:
 
             ```
-            ## Security Scan Results
+            ## Security Review
 
             ### Summary
-            <one-paragraph executive summary>
+            <One paragraph: what this PR does, overall risk assessment, any patterns of concern.>
 
             ### Findings
 
             #### [SEVERITY] Short Title
             **File:** `path/to/File.java:line`
-            **Description:** What the vulnerability is and why it matters.
-            **Recommendation:** Specific fix with code example if helpful.
+            **Description:** What the vulnerability is, why it matters, and how it could be exploited.
+            **Recommendation:** Specific fix with a concise code example where helpful.
 
             ---
+
+            ### Verdict
+            APPROVED | CHANGES REQUESTED
             ```
 
-            If no issues are found, post:
+            If there are no findings:
             ```
-            ## Security Scan Results
-            No security issues found in this PR. ✅
+            ## Security Review
+
+            ### Summary
+            <Brief description of what was reviewed.>
+
+            No security issues found. ✅
+
+            ### Verdict
+            APPROVED
             ```
 
-            Always post the comment even when there are no findings.
+            Always post the comment — even when there are no findings.
