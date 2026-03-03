@@ -35,3 +35,9 @@ target/
 
 # macOS
 .DS_Store
+
+# Local development docs (not for public repo)
+docs/
+
+# Claude Code local files
+.claude/
