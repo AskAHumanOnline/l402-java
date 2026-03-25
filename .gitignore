@@ -40,4 +40,5 @@ target/
 docs/
 
 # Claude Code local files
+CLAUDE.local.md
 .claude/

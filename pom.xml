@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>l402-java</name>
-    <description>Java library for L402 Lightning Network payment authentication</description>
+    <description>Java library for the L402 protocol — Lightning-gated API authentication using macaroons and BOLT11 invoices.</description>
     <url>https://github.com/AskAHumanOnline/l402-java</url>
 
     <licenses>
@@ -23,21 +23,21 @@
 
     <inceptionYear>2025</inceptionYear>
 
+    <developers>
+        <developer>
+            <name>AskAHuman Dev</name>
+            <email>askahuman@proton.me</email>
+            <organization>AskAHuman Online</organization>
+            <organizationUrl>https://askahuman.online</organizationUrl>
+        </developer>
+    </developers>
+
     <scm>
         <connection>scm:git:git://github.com/AskAHumanOnline/l402-java.git</connection>
         <developerConnection>scm:git:ssh://github.com/AskAHumanOnline/l402-java.git</developerConnection>
         <url>https://github.com/AskAHumanOnline/l402-java</url>
         <tag>HEAD</tag>
     </scm>
-
-    <developers>
-        <developer>
-            <name>AskAHuman</name>
-            <email>dev@askahuman.online</email>
-            <organization>AskAHuman Online</organization>
-            <organizationUrl>https://askahuman.online</organizationUrl>
-        </developer>
-    </developers>
 
     <modules>
         <module>l402-java-core</module>
@@ -155,6 +155,37 @@
             <id>release</id>
             <build>
                 <plugins>
+                    <!-- Sources jar (required by Maven Central) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Javadoc jar (required by Maven Central) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.11.2</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- GPG signing (required by Maven Central) -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
@@ -163,18 +194,22 @@
                             <execution>
                                 <id>sign-artifacts</id>
                                 <phase>verify</phase>
-                                <goals><goal>sign</goal></goals>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
                             </execution>
                         </executions>
                     </plugin>
+
+                    <!-- Central Portal publishing -->
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.6.0</version>
+                        <version>0.7.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>
-                            <autoPublish>false</autoPublish>
+                            <autoPublish>true</autoPublish>
                         </configuration>
                     </plugin>
                 </plugins>
