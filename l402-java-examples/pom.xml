@@ -7,7 +7,7 @@
     <parent>
         <groupId>online.askahuman</groupId>
         <artifactId>l402-java</artifactId>
-        <version>0.1.0</version>
+        <version>0.1.2</version>
     </parent>
 
     <artifactId>l402-java-examples</artifactId>
@@ -37,8 +37,13 @@
 
     <properties>
         <!-- Exclude the examples module from Maven Central publication.
-             It is a runnable demo application, not a library artifact. -->
+             It is a runnable demo application, not a library artifact.
+             maven.deploy.skip covers the standard deploy plugin;
+             centralPublishing.skip covers the Sonatype central-publishing-maven-plugin. -->
         <maven.deploy.skip>true</maven.deploy.skip>
+        <centralPublishing.skip>true</centralPublishing.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+        <maven.source.skip>true</maven.source.skip>
     </properties>
 
     <build>
