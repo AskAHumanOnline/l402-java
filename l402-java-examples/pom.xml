@@ -41,9 +41,6 @@
              maven.deploy.skip covers the standard deploy plugin;
              centralPublishing.skip covers the Sonatype central-publishing-maven-plugin. -->
         <maven.deploy.skip>true</maven.deploy.skip>
-        <centralPublishing.skip>true</centralPublishing.skip>
-        <maven.javadoc.skip>true</maven.javadoc.skip>
-        <maven.source.skip>true</maven.source.skip>
     </properties>
 
     <build>
