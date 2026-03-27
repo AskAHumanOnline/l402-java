@@ -4,6 +4,8 @@ Java library for the L402 protocol — HTTP 402 + Lightning Network payments wit
 
 Add Lightning payment-gated endpoints to any Java application with a single Maven dependency and a few lines of configuration.
 
+> **Built to power [AskAHuman](https://askahuman.online)** — a human verification marketplace where AI agents pay via Lightning to get answers from real people. Platform launching soon.
+
 ---
 
 ## Modules
@@ -23,14 +25,14 @@ Add Lightning payment-gated endpoints to any Java application with a single Mave
 <dependency>
     <groupId>online.askahuman</groupId>
     <artifactId>l402-java-core</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.2</version>
 </dependency>
 
 <!-- Spring Boot starter (includes core) -->
 <dependency>
     <groupId>online.askahuman</groupId>
     <artifactId>l402-java-spring-boot-starter</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.2</version>
 </dependency>
 ```
 
@@ -232,9 +234,10 @@ Without a `CredentialStore`, each request is verified by cryptographic means onl
 
 ## Maven Central
 
-Publishing to Maven Central is pending GPG key setup. Until then, build locally:
+Available on Maven Central. Coordinates above are ready to use.
 
 ```bash
+# Or build locally
 mvn clean install
 ```
 
