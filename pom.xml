@@ -52,9 +52,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-boot.version>4.0.2</spring-boot.version>
         <jmacaroons.version>0.4.1</jmacaroons.version>
-        <junit.version>5.11.0</junit.version>
-        <mockito.version>5.14.2</mockito.version>
-        <assertj.version>3.27.3</assertj.version>
+        <junit.version>5.14.4</junit.version>
+        <mockito.version>5.23.0</mockito.version>
+        <assertj.version>3.27.7</assertj.version>
     </properties>
 
     <dependencyManagement>
