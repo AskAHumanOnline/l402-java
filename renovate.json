@@ -24,20 +24,20 @@
     {
       "description": "Group test dependencies",
       "groupName": "Test dependencies",
-      "matchPackagePrefixes": [
-        "org.junit",
-        "org.mockito",
-        "org.assertj",
-        "com.github.tomakehurst",
-        "org.wiremock"
+      "matchPackageNames": [
+        "org.junit{/,}**",
+        "org.mockito{/,}**",
+        "org.assertj{/,}**",
+        "com.github.tomakehurst{/,}**",
+        "org.wiremock{/,}**"
       ]
     },
     {
       "description": "Group Maven plugins",
       "groupName": "Maven plugins",
-      "matchPackagePrefixes": [
-        "org.apache.maven.plugins",
-        "org.jacoco"
+      "matchPackageNames": [
+        "org.apache.maven.plugins{/,}**",
+        "org.jacoco{/,}**"
       ]
     }
   ],
@@ -51,8 +51,6 @@
   },
 
   "prConcurrentLimit": 5,
-  "prCreation": "not-pending",
-  "prNotPendingHours": 2,
 
   "vulnerabilityAlerts": {
     "enabled": true,
