@@ -25,14 +25,14 @@ Add Lightning payment-gated endpoints to any Java application with a single Mave
 <dependency>
     <groupId>online.askahuman</groupId>
     <artifactId>l402-java-core</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
 </dependency>
 
 <!-- Spring Boot starter (includes core) -->
 <dependency>
     <groupId>online.askahuman</groupId>
     <artifactId>l402-java-spring-boot-starter</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
 </dependency>
 ```
 
